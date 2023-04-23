@@ -1,2 +1,1 @@
-# AdomasF
-Adomas Fiseris Data Projects
+# Adomas Fiseris Data Analysis Project
