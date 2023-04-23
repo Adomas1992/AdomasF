@@ -1,0 +1,155 @@
+---
+title: "Capstone Project Bellabeat"
+author: "Adomas Fiseris"
+date: "2023-04-22"
+output: html_document
+---
+### Business task
+
+The objective of this task is to analyze current trends in the smart device industry and compare them to Bellabeat's current lineup of devices and their features. By identifying the most in-demand and widely used functions across the smart device industry, we can assess how Bellabeat's products stack up and determine any potential areas for improvement. The findings of this capstone project will inform the current marketing strategy and potentially influence future product development at Bellabeat.
+
+### Data source
+
+Fitness Tracker Data (CC0: Public Domain, dataset made available through Mobius): This Kaggle data set contains personal fitness tracker from thirty Fitbit users. Thirty eligible Fitbit users consented to the submission of personal tracker data, including minute-level output for physical activity, heart rate, and sleep monitoring. It includes information about daily activity, steps, and heart rate that can be used to explore users’ habits.
+
+### Data preparation Changelog (preparing data for R visualizations) (Excel/ SQL):
+
+#### ChangeLog
+
+1.1: Updated the SleepDay field (sleepDay_merged.csv) format from 4/12/2016 12:00:00 AM to 4/12/2016
+
+1.2: Updated the Date field (weightLogInfo_merged.csv) format from 4/12/2016 12:00:00 AM to 4/12/2016
+
+1.3: Cleaning and merging data with SQL (Daily_Activity table):
+
+- SELECT COUNT(*) AS num_rows_with_10_digits: Checking ID Column for incorrect ID numbers
+- SELECT DISTINCT Id: Checking individual ID count (33)
+- SELECT DISTINCT Id: Checking how many distinct Id's are left after filtering for steps (making sure I am not losing any unique Id's), calories and sedentary minutes to be non-0 or null value (saved the Daily_Activity_Filtered for future use in R)
+- SELECT DISTINCT Id: Checking unique ID count in the Sleep_Time table (24)
+- SELECT *: JOIN statement to combine Daily_Activity_Filtered and Sleep_Time tables on Id and Daily_Activity_Filtered.ActivityDate/Sleep_Time.SleepDay
+- SELECT COUNT(DISTINCT Id) AS Unique_Id_count: After combining the tables, there are 24 unique Id's left (INNER JOIN)
+- SELECT *: Adding weight log information with a LEFT JOIN
+
+### Data manipulation outcome
+
+The more comprehensive data set includes calorie intake, sedentary minutes per day, and sleep time in minutes for 24 unique individuals who tracked those inputs for multiple days. Some IDs were excluded since they did not track one of these variables (calories, sleep time, or sedentary minutes). Additionally, the weight variable was deemed insignificant due to the limited number of observations. This data set was prepared for R visualizations to gain insights into the relationships between calorie intake, sedentary behavior, and sleep patterns.
+
+### Data preparation in R
+
+We first load the necessary packages and read in the data:
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(lme4)
+
+DailyActivity_Sleep_Weight <- read_csv("Filtered_DailyActivity_Sleep_Weight_Log.csv")
+```
+
+We then check the number of unique Id values in the data and inspect the column names:
+
+```{r}
+n_distinct(DailyActivity_Sleep_Weight$Id)
+colnames(DailyActivity_Sleep_Weight)
+```
+
+### Modeling
+
+We fit a mixed-effects model to investigate the relationship between Calories and TotalMinutesAsleep because we are interested in exploring how changes in TotalMinutesAsleep are related to changes in Calories while accounting for individual-level variation in the data. A mixed-effects model allows us to model the fixed effects of TotalMinutesAsleep while accounting for the random effects of individual-level variability, which is important when dealing with data that have multiple observations per individual. Additionally, this model can provide information on the strength and direction of the relationship between Calories and TotalMinutesAsleep while controlling for other factors that may influence the outcome of interest.
+
+```{r}
+model1 <- lmer(Calories ~ TotalMinutesAsleep + (1|Id), data = DailyActivity_Sleep_Weight)
+summary(model1)
+```
+
+### Statistical interpretation of Calorie Intake and TotalMinutesAsleep
+
+In this linear mixed model, we are modeling Calorie Intake as a function of Total Minutes Asleep for each individual (Id), with a random intercept for each individual. The model suggests that there is a significant negative association between Total Minutes Asleep and Calorie Intake (t = -2.29, p < 0.05), after controlling for the individual differences in baseline Calorie Intake (Intercept). This means that, on average, individuals who slept for longer periods of time tended to consume fewer calories per day, all else being equal. However, the variance explained by the model is relatively small (R-squared = 0.02) and there may be other important predictors of Calorie Intake that were not included in the model.
+
+We can visualize the relationship between Calories and TotalMinutesAsleep using a scatter plot with a linear regression line and color-coded by Calories:
+
+```{r}
+DailyActivity_Sleep_Weight$Id <- factor(DailyActivity_Sleep_Weight$Id)
+
+ggplot(DailyActivity_Sleep_Weight, aes(x = TotalMinutesAsleep, y = Calories, group = Id)) +
+  geom_point(aes(color = Id), size = 2) +
+  scale_color_discrete() +
+  stat_smooth(method = "lm", formula = y ~ x, se = FALSE) +
+  labs(title = "Mixed-effects model", x = "TotalMinutesAsleep", y = "Calories") +
+  facet_wrap(~ Id, nrow = 4) +
+  theme(axis.text.x = element_text(size = 8, angle = 45, hjust = 1))
+```
+
+We then fit another mixed-effects model to investigate the relationship between Calories and SedentaryMinutes:
+
+```{r}
+model2 <- lmer(Calories ~ SedentaryMinutes + (1|Id), data = DailyActivity_Sleep_Weight)
+summary(model2)
+```
+
+### Statistical interpretation of Calorie Intake and SedentaryMinutes
+
+In this linear mixed model, we are modeling Calories as a function of Sedentary Minutes for each individual (Id), with a random intercept for each individual. The model suggests that there is no significant association between Sedentary Minutes and Calories (t = 0.84, p > 0.05), after controlling for the individual differences in baseline Calories (Intercept). However, it's important to note that the variance explained by the model is relatively small (R-squared = 0.001) and there may be other important predictors of Calories that were not included in the model.
+
+We can visualize this relationship using a scatter plot with a linear regression line and color-coded by Calories:
+
+```{r}
+DailyActivity_Sleep_Weight$Id <- factor(DailyActivity_Sleep_Weight$Id)
+
+ggplot(DailyActivity_Sleep_Weight, aes(x = SedentaryMinutes, y = Calories, group = Id)) +
+  geom_point(aes(color = Id), size = 2) +
+  scale_color_discrete() +
+  stat_smooth(method = "lm", formula = y ~ x, se = FALSE) +
+  labs(title = "Mixed-effects model", x = "SedentaryMinutes", y = "Calories") +
+  facet_wrap(~ Id, nrow = 4) +
+  theme(axis.text.x = element_text(size = 8, angle = 45, hjust = 1))
+```
+
+### Creating a new variable "PrevDaySteps" and "PrevDate" for PrevDaySteps and TotalMinutesAsleep comparison
+
+```{r}
+library(lubridate)
+
+DailyActivity_Sleep_Weight2 <- DailyActivity_Sleep_Weight %>%
+  mutate(ActivityDate = mdy(ActivityDate)) %>%
+  arrange(Id, ActivityDate) %>%
+  group_by(Id) %>%
+  mutate(PrevDaySteps = lag(TotalSteps, 1),
+         PrevDate = lag(ActivityDate, 1)) %>%
+  filter(!is.na(PrevDaySteps) & ActivityDate == PrevDate + days(1))
+```
+
+We then fit another mixed-effects model to investigate the relationship between PrevDaySteps and TotalMinutesAsleep (filtered for observations where the total steps of the previous day were not tracked:
+
+```{r}
+
+DailyActivity_Sleep_Weight2$TotalMinutesAsleep_std <- scale(DailyActivity_Sleep_Weight2$TotalMinutesAsleep)
+
+model4 <- lmer(PrevDaySteps ~ TotalMinutesAsleep_std + (1|Id), data = DailyActivity_Sleep_Weight2)
+summary(model4)
+```
+
+### Statistical interpretation of PrevDaySteps and TotalMinutesAsleep
+
+This statistical model examined the relationship between the number of steps taken on a previous day and the total amount of sleep an individual got, while accounting for individual differences. The results suggest that there is a positive but weak association between the number of steps taken and the amount of sleep an individual got. The intercept value indicates that on average, an individual takes 8246.5 steps on the previous day before getting a total amount of sleep that is adjusted for individual differences. The random effects show that there is significant individual variation in the intercepts, meaning that individuals differ in their average steps taken and amount of sleep obtained. Overall, the model suggests that taking more steps on a previous day could potentially lead to a slight increase in the amount of sleep obtained.
+
+We can visualize this relationship using a scatter plot with a linear regression line and color-coded by PrevDaySteps:
+
+```{r}
+DailyActivity_Sleep_Weight2$Id <- factor(DailyActivity_Sleep_Weight2$Id)
+
+ggplot(DailyActivity_Sleep_Weight2, aes(x = TotalMinutesAsleep, y = PrevDaySteps, group = Id)) +
+  geom_point(aes(color = Id), size = 2) +
+  scale_color_discrete() +
+  stat_smooth(method = "lm", formula = y ~ x, se = FALSE) +
+  labs(title = "Mixed-effects model", x = "TotalMinutesAsleep", y = "PrevDaySteps") +
+  facet_wrap(~ Id, nrow = 4) +
+  theme(axis.text.x = element_text(size = 8, angle = 45, hjust = 1))
+```
+
+### Key findings
+
+The study investigated the relationship between calorie intake, sedentary behavior, and sleep patterns using Fitbit data. The results showed that there was a significant correlation between sedentary behavior and higher calorie intake. Furthermore, it was found that individuals who slept for longer periods tended to consume fewer calories, and that tracking calories and weight can improve the Bellabeat app's recommendations for individuals.
+
+Based on these findings, it was suggested that the Bellabeat app could benefit from adding features that track calorie intake and weight, which could provide users with more personalized recommendations. This would allow individuals to better understand their habits and make healthy decisions tailored to their unique needs. Overall, the project highlights the potential for technology to promote healthy behaviors and support individuals in achieving their wellness goals.
